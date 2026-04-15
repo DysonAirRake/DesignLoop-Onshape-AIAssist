@@ -1,1 +1,2257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DesignLoop</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=Instrument+Sans:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg:       #0b0b0d;
+      --surface:  #141417;
+      --surface2: #1b1b1f;
+      --surface3: #222228;
+      --border:   #2a2a32;
+      --border2:  #35353f;
+      --accent:   #a8e847;
+      --accent-d: #7db830;
+      --accent2:  #47b8e8;
+      --accent2-d:#2e8ab5;
+      --red:      #e85a5a;
+      --muted:    #55555f;
+      --dim:      #8a8a9c;
+      --text:     #e2e2ea;
+      --text-hi:  #f4f4fa;
+      --r:        6px;
+      --fh:       'Instrument Sans', sans-serif;
+      --fm:       'IBM Plex Mono', monospace;
+    }
 
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { width: 100%; height: 100%; }
+    body { height: 100%; overflow: hidden; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--fm);
+      font-size: 12.5px;
+      line-height: 1.55;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ═══ HEADER ═══ */
+    .header {
+      flex-shrink: 0;
+      padding: 10px 14px 0;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .header-top {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      padding-bottom: 9px;
+    }
+    .wordmark {
+      font-family: var(--fh); font-size: 14px;
+      font-weight: 700; letter-spacing: -0.03em;
+    }
+    .wordmark span { color: var(--accent); }
+
+    /* ── Active document indicator bar ── */
+    .doc-indicator {
+      display: flex; align-items: center; gap: 7px;
+      padding: 4px 0 8px;
+      font-size: 10px; font-family: var(--fm);
+      border-top: 1px solid var(--border);
+      min-height: 0;
+    }
+    .doc-indicator-dot {
+      width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+      background: var(--muted);
+    }
+    .doc-indicator-dot.connected {
+      background: var(--accent);
+      box-shadow: 0 0 6px var(--accent);
+    }
+    .doc-indicator-name {
+      color: var(--dim); flex: 1;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .doc-indicator-name.connected { color: var(--text); }
+
+    .onboard-tip {
+      position: absolute; top: calc(100% + 8px); z-index: 300;
+      background: #1a1a2e; border: 1px solid var(--accent);
+      border-radius: 6px; padding: 9px 11px; width: 200px;
+      font-size: 10px; color: var(--text); line-height: 1.5;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+    }
+    .onboard-tip strong { color: var(--accent); display: block; margin-bottom: 2px; }
+    .onboard-tip-arrow {
+      position: absolute; top: -5px; left: 16px;
+      width: 8px; height: 8px; background: #1a1a2e;
+      border-left: 1px solid var(--accent); border-top: 1px solid var(--accent);
+      transform: rotate(45deg);
+    }
+    .onboard-tip-foot {
+      text-align: right; margin-top: 6px;
+    }
+    .onboard-tip-foot button {
+      background: none; border: none; color: var(--accent);
+      font-size: 9px; cursor: pointer; padding: 0; text-decoration: underline;
+    }
+
+    .header-badge {
+      font-family: var(--fm); font-size: 9px;
+      color: var(--muted); background: var(--surface2);
+      border: 1px solid var(--border); border-radius: 20px;
+      padding: 2px 8px; letter-spacing: 0.04em;
+    }
+
+    /* ═══ TABS ═══ */
+    .tab-nav { display: flex; gap: 0; }
+    .tab-btn {
+      flex: 1; display: flex; align-items: center;
+      justify-content: center; gap: 5px;
+      padding: 8px 4px; border: none;
+      border-bottom: 2px solid transparent;
+      background: transparent; color: var(--muted);
+      font-family: var(--fh); font-size: 9px;
+      font-weight: 700; letter-spacing: 0.05em;
+      text-transform: uppercase; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tab-btn:hover { color: var(--dim); }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-btn.active.blue { color: var(--accent2); border-bottom-color: var(--accent2); }
+    .tab-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+    .tab-num {
+      display: inline-flex; align-items: center;
+      justify-content: center; width: 15px; height: 15px;
+      border-radius: 50%; border: 1.5px solid currentColor;
+      font-size: 8px; flex-shrink: 0;
+    }
+    .tab-btn.done .tab-num {
+      background: var(--accent); border-color: var(--accent); color: #000;
+    }
+    .tab-btn.done { color: var(--dim); }
+
+    /* ═══ PANELS ═══ */
+    /* .panels is the single scroll container — no absolute positioning needed.
+       min-height:0 lets it shrink below content size as a flex child.       */
+    .panels {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;       /* reserve scrollbar space so content width never shifts */
+    }
+    .panels::-webkit-scrollbar { width: 4px; }
+    .panels::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+    /* Panels are hidden with display:none; only .active renders into flow */
+    .panel {
+      display: none;
+      padding: 14px;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .panel.active { display: flex; }
+
+    /* ═══ CARDS ═══ */
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r); overflow: hidden;
+    }
+    .card.scrollable { overflow: visible; }
+    .card-header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 14px; border-bottom: 1px solid var(--border);
+      background: var(--surface2);
+    }
+    .card-tag {
+      font-family: var(--fh); font-size: 8px; font-weight: 700;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      background: var(--accent); color: #000;
+      padding: 2px 7px; border-radius: 3px;
+    }
+    .card-tag.blue { background: var(--accent2); }
+    .card-tag.dim  { background: var(--surface3); color: var(--dim); }
+    .card-title { font-family: var(--fh); font-size: 12px; font-weight: 700; }
+    .card-body { padding: 14px; }
+
+    /* ═══ CONNECTION CARD (new — URL paste fallback) ═══ */
+    .connection-status {
+      display: flex; align-items: center; gap: 7px;
+      padding: 10px 14px; font-size: 11px;
+    }
+    .status-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .status-dot.ok { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+    .status-dot.warn { background: #e8a847; box-shadow: 0 0 6px #e8a847; }
+    .status-dot.off { background: var(--red); box-shadow: 0 0 6px var(--red); }
+
+    .url-input-row {
+      display: none; padding: 0 14px 14px; gap: 7px;
+      align-items: stretch;
+    }
+    .url-input-row.show { display: flex; }
+    .url-input {
+      flex: 1; background: var(--surface2);
+      border: 1px solid var(--border); border-radius: var(--r);
+      color: var(--text-hi); font-family: var(--fm); font-size: 11px;
+      padding: 7px 10px; outline: none; transition: border-color 0.15s;
+    }
+    .url-input::placeholder { color: var(--dim); font-style: italic; }
+    .url-input:focus { border-color: var(--accent); }
+
+    /* ═══ DOCUMENT PICKER ═══ */
+    .doc-picker { display: none; flex-direction: column; gap: 6px;
+                  padding: 10px 14px 14px; }
+    .doc-picker.show { display: flex; }
+    .doc-picker-label { font-size: 10px; color: var(--dim);
+                        text-transform: uppercase; letter-spacing: .04em; }
+    .doc-picker-list { display: flex; flex-direction: column; gap: 4px;
+                       max-height: 260px; overflow-y: auto; }
+    .doc-picker-item {
+      display: flex; align-items: center; gap: 10px; cursor: pointer;
+      padding: 8px 10px; border-radius: var(--r);
+      background: var(--surface2); border: 1px solid var(--border);
+      transition: border-color .15s, background .15s;
+    }
+    .doc-picker-item:hover { border-color: var(--accent2); background: var(--surface3); }
+    .doc-picker-item.loading { opacity: .5; pointer-events: none; }
+    .doc-picker-name { font-size: 12px; color: var(--text-hi); flex: 1;
+                       white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .doc-picker-meta { font-size: 10px; color: var(--dim); white-space: nowrap; }
+    .doc-picker-cache { display: inline-block; width: 6px; height: 6px;
+                        border-radius: 50%; background: var(--accent);
+                        box-shadow: 0 0 5px var(--accent); flex-shrink: 0; }
+    .doc-picker-or { font-size: 10px; color: var(--muted); text-align: center;
+                     padding: 4px 0; }
+    .doc-picker-url-btn {
+      font-size: 11px; background: none; border: 1px solid var(--border);
+      color: var(--dim); border-radius: var(--r); padding: 5px 10px;
+      cursor: pointer; width: 100%; text-align: center; transition: border-color .15s;
+    }
+    .doc-picker-url-btn:hover { border-color: var(--border2); color: var(--text); }
+
+    /* ═══ VIEW PANEL ═══ */
+    .view-toolbar {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      padding: 8px 14px; border-bottom: 1px solid var(--border);
+    }
+    .view-status { font-size: 10px; color: var(--dim); }
+
+    .view-tabs {
+      display: flex; gap: 3px; padding: 8px 12px 0;
+      overflow-x: auto; scrollbar-width: none;
+    }
+    .view-tabs::-webkit-scrollbar { display: none; }
+    .view-tab {
+      flex-shrink: 0; padding: 3px 9px;
+      border-radius: 4px 4px 0 0;
+      border: 1px solid var(--border); border-bottom: none;
+      font-size: 9px; font-family: var(--fh); font-weight: 700;
+      color: var(--muted); cursor: pointer;
+      background: var(--surface2); transition: all 0.15s;
+      letter-spacing: 0.04em; text-transform: uppercase;
+    }
+    .view-tab:hover { color: var(--text); }
+    .view-tab.active {
+      background: var(--surface); color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .view-display {
+      background: #08080a; border-top: 1px solid var(--border);
+      margin: 0 12px 8px; border-radius: 0 0 var(--r) var(--r);
+      overflow: hidden; aspect-ratio: 4/3;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .view-display img {
+      width: 100%; height: 100%; object-fit: contain; cursor: zoom-in;
+    }
+    .view-placeholder {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 8px;
+      color: var(--muted); font-size: 11px; text-align: center; padding: 20px;
+    }
+    .view-placeholder svg { opacity: 0.2; width: 28px; height: 28px; }
+
+    .thumb-strip {
+      display: flex; gap: 5px; padding: 0 12px 10px;
+      overflow-x: auto; scrollbar-width: none;
+    }
+    .thumb-strip::-webkit-scrollbar { display: none; }
+    .thumb {
+      flex-shrink: 0; width: 48px; height: 48px;
+      border-radius: 4px; border: 1px solid var(--border);
+      overflow: hidden; cursor: pointer;
+      background: #08080a; transition: border-color 0.15s;
+    }
+    .thumb:hover { border-color: var(--dim); }
+    .thumb.active { border-color: var(--accent); }
+    .thumb img { width: 100%; height: 100%; object-fit: contain; }
+    .thumb-label {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      font-size: 6px; text-align: center; padding: 1px;
+      background: rgba(0,0,0,0.75); color: var(--dim);
+      font-family: var(--fh); font-weight: 700;
+    }
+
+    /* ═══ INPUTS ═══ */
+    .input-label {
+      display: block; font-size: 10px; letter-spacing: 0.06em;
+      text-transform: uppercase; color: var(--text);
+      margin-bottom: 6px; font-weight: 500;
+    }
+    textarea {
+      width: 100%; background: var(--surface3);
+      border: 1px solid var(--border2); border-radius: var(--r);
+      color: var(--text-hi); font-family: var(--fm);
+      font-size: 12px; line-height: 1.6; padding: 10px 12px;
+      resize: none; outline: none; transition: border-color 0.15s;
+      overflow: hidden; box-sizing: border-box;
+    }
+    #descInput { min-height: 96px; }
+    #nextInput  { min-height: 76px; }
+    textarea::placeholder { color: var(--dim); font-style: italic; }
+    textarea::selection { background: var(--accent); color: #000; }
+    textarea:focus { border-color: var(--accent); background: var(--surface2); }
+    textarea.blue:focus { border-color: var(--accent2); }
+    textarea.blue::selection { background: var(--accent2); color: #000; }
+    .char-hint {
+      text-align: right; font-size: 9px;
+      color: var(--muted); margin-top: 4px;
+    }
+
+    /* ═══ BUTTONS ═══ */
+    .btn-row { display: flex; gap: 7px; margin-top: 10px; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 8px 14px; border-radius: var(--r);
+      font-family: var(--fh); font-size: 11px; font-weight: 700;
+      letter-spacing: 0.02em; cursor: pointer; border: none;
+      transition: all 0.15s;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.25; cursor: not-allowed; pointer-events: none; }
+    .btn-primary { background: var(--accent); color: #000; }
+    .btn-primary:hover { background: var(--accent-d); }
+    .btn-primary.blue { background: var(--accent2); }
+    .btn-primary.blue:hover { background: var(--accent2-d); }
+    .btn-ghost {
+      background: transparent; color: var(--dim);
+      border: 1px solid var(--border); padding: 7px 11px;
+    }
+    .btn-ghost:hover { color: var(--text); border-color: var(--border2); }
+    .btn-nav {
+      width: 100%; justify-content: center;
+      padding: 10px 14px; font-size: 12px;
+    }
+    .btn-sm { padding: 5px 9px; font-size: 10px; }
+
+    /* ═══ LOADERS ═══ */
+    .loader {
+      height: 2px; background: var(--border); border-radius: 1px;
+      margin-top: 10px; overflow: hidden; display: none;
+    }
+    .loader.on { display: block; }
+    .loader::after {
+      content: ''; display: block; height: 100%; width: 30%;
+      background: var(--accent);
+      animation: sweep 1.4s ease-in-out infinite;
+    }
+    .loader.blue::after { background: var(--accent2); }
+    @keyframes sweep {
+      0%   { transform: translateX(-150%); }
+      100% { transform: translateX(500%); }
+    }
+    .loader-label {
+      font-size: 10px; color: var(--muted);
+      font-style: italic; margin-top: 5px; display: none;
+    }
+    .loader-label.on { display: block; }
+
+    /* ═══ AI OUTPUT ═══ */
+    .ai-output {
+      padding: 14px; font-size: 12px; line-height: 1.85;
+      color: var(--text-hi); white-space: pre-wrap;
+      max-height: 55vh; overflow-y: auto;
+    }
+    .ai-output::-webkit-scrollbar { width: 3px; }
+    .ai-output::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* ═══ CONCEPT IMAGE ═══ */
+    .concept-placeholder {
+      width: 100%; height: 100%;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 6px;
+    }
+    .concept-placeholder svg { width: 24px; height: 24px; color: var(--border); }
+    .concept-placeholder span { font-size: 10px; color: var(--muted); }
+
+    /* ═══ INFO ROW ═══ */
+    .info-row {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      padding: 8px 14px; border-bottom: 1px solid var(--border);
+      font-size: 10px; color: var(--muted);
+    }
+    .info-row strong {
+      color: var(--dim); font-family: var(--fh);
+      font-weight: 700; font-size: 9px;
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+
+    /* ═══ TOAST ═══ */
+    .toast {
+      position: fixed; bottom: 12px; left: 14px; right: 14px;
+      background: #2e1010; border: 1px solid #5b2020;
+      color: #ff8888; border-radius: var(--r);
+      padding: 9px 13px; font-size: 11px;
+      z-index: 999; opacity: 0; pointer-events: none;
+      transition: opacity 0.2s;
+    }
+    .toast.on { opacity: 1; pointer-events: auto; }
+
+    /* ═══ MODAL ═══ */
+    .modal {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.88);
+      z-index: 200; display: none;
+      align-items: center; justify-content: center;
+      flex-direction: column; gap: 10px; padding: 16px;
+    }
+    .modal.on { display: flex; }
+    .modal img {
+      max-width: 100%; max-height: 82vh;
+      border-radius: var(--r); object-fit: contain;
+    }
+    .modal-close {
+      position: absolute; top: 12px; right: 15px;
+      font-size: 24px; color: var(--dim); cursor: pointer;
+    }
+    .modal-close:hover { color: var(--text); }
+    .modal-label {
+      font-size: 10px; color: var(--dim);
+      font-family: var(--fh); font-weight: 700;
+      letter-spacing: 0.06em; text-transform: uppercase;
+    }
+
+    /* ═══ CONCEPT GALLERY ═══ */
+    .concept-strip {
+      display: flex; gap: 5px;
+      padding: 8px 12px;
+      overflow-x: auto; scrollbar-width: none;
+      border-bottom: 1px solid var(--border);
+      scroll-behavior: smooth;
+    }
+    .concept-strip::-webkit-scrollbar { display: none; }
+    /* hide strip border when empty */
+    .concept-strip:not(:has(.cthumb)) { border-bottom: none; padding: 0 12px; }
+
+    .cthumb {
+      flex-shrink: 0; width: 60px; height: 60px;
+      border-radius: 4px; border: 2px solid var(--border);
+      overflow: hidden; cursor: pointer;
+      background: #08080a; position: relative;
+      transition: border-color 0.15s, transform 0.1s;
+    }
+    .cthumb:hover { border-color: var(--dim); transform: scale(1.04); }
+    .cthumb.active { border-color: var(--accent2); }
+    .cthumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .cthumb-n {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      font-size: 7px; text-align: center; padding: 1px 0;
+      background: rgba(0,0,0,0.78); color: var(--muted);
+      font-family: var(--fh); font-weight: 700; letter-spacing: 0.04em;
+    }
+    .cthumb.active .cthumb-n { color: var(--accent2); }
+
+    .concept-counter {
+      font-family: var(--fm); font-size: 10px;
+      color: var(--muted); margin-left: auto; flex-shrink: 0;
+    }
+
+    /* ═══ DIVIDER ═══ */
+    .divider { border: none; border-top: 1px solid var(--border); margin: 2px 0; }
+
+    /* ═══ RESET BUTTON ═══ */
+    .btn-new-iter {
+      font-family: var(--fm); font-size: 9px;
+      color: var(--accent); background: transparent;
+      border: 1px solid var(--accent); border-radius: 20px;
+      padding: 2px 9px; letter-spacing: 0.04em;
+      cursor: pointer; transition: all 0.15s; display: none;
+    }
+    .btn-new-iter:hover { background: var(--accent); color: #000; }
+
+  </style>
+
+  <!--
+    ONSHAPE APPLICATION EXTENSION BOOTSTRAP
+    ----------------------------------------
+    This script MUST be in <head> (not deferred) so that Onshape can call
+    window.applicationExtensionController.onInit(appHandle) immediately when
+    the extension iframe loads — before the rest of our JS executes.
+
+    For left-panel app extensions Onshape does NOT substitute {documentId} etc.
+    in the URL. Instead it calls onInit() with an appHandle that carries the
+    document context. We stash the result in window._onshapeInitCtx so the
+    main bootstrap cascade can pick it up.
+  -->
+  <script>
+  (function() {
+    function _captureAppHandle(appHandle) {
+      if (!appHandle) return;
+
+      // Onshape passes context as direct properties on the handle object.
+      // Try every known variant so this survives SDK changes.
+      var did, wid, eid, wvm;
+      try {
+        var dc = typeof appHandle.getDocumentContext === 'function'
+                   ? appHandle.getDocumentContext() : null;
+        did = (dc && dc.documentId)  || appHandle.documentId  || appHandle.did  || '';
+        wid = (dc && dc.workspaceId) || appHandle.workspaceId || appHandle.wid  || '';
+        eid = (dc && dc.elementId)   || appHandle.elementId   || appHandle.eid  || '';
+        wvm = (dc && dc.wvmType)     || appHandle.wvmType     || appHandle.wvm  || 'w';
+      } catch (e) {
+        did = ''; wid = ''; eid = ''; wvm = 'w';
+      }
+
+      // Dump all enumerable handle properties for server-side diagnosis
+      var props = {};
+      try {
+        Object.keys(appHandle).forEach(function(k) {
+          try { props[k] = typeof appHandle[k] === 'function' ? '[fn]' : appHandle[k]; }
+          catch (e) { props[k] = '[err]'; }
+        });
+      } catch (e) {}
+
+      // Send raw dump to the debug endpoint (fire-and-forget)
+      try {
+        fetch('/debug-onshape-msg', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            raw:    { did: did, wid: wid, eid: eid, wvm: wvm, allProps: props },
+            origin: 'applicationExtensionController.onInit',
+          }),
+        }).catch(function() {});
+      } catch (e) {}
+
+      // Store context so the main bootstrap (which may run later) can read it
+      window._onshapeInitCtx = { did: did, wid: wid, eid: eid, wvm: wvm };
+
+      // If the bootstrap is already waiting, call it immediately
+      if (typeof window._onshapeInitCb === 'function') {
+        window._onshapeInitCb(did, wid, eid, wvm);
+      }
+    }
+
+    // Pattern A — newer Onshape Application Extension SDK
+    window.applicationExtensionController = {
+      onInit:    function(appHandle) { _captureAppHandle(appHandle); },
+      onDestroy: function() {},
+    };
+
+    // Pattern B — older Onshape frame host callback
+    window.onApplicationFrameLoad = function(appHandle) { _captureAppHandle(appHandle); };
+  })();
+  </script>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══ -->
+<div class="header">
+  <div class="header-top">
+    <div class="wordmark">Design<span>Loop</span></div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span class="header-badge" id="iterBadge">Iteration 1</span>
+      <button class="btn-new-iter" id="newIterBtn" onclick="finishIteration()">&#10003; Finish Iteration</button>
+      <div style="position:relative">
+        <button class="btn-ghost" id="historyBtn" onclick="openHistory()"
+                style="display:none;font-size:9px;padding:2px 9px;border-radius:20px">
+          &#128337; History</button>
+        <!-- One-time tutorial tip — shown after first iteration completes -->
+        <div id="historyTip" style="display:none;position:absolute;top:calc(100% + 6px);
+             right:0;z-index:200;background:#1a2a1a;border:1px solid #3a9b54;
+             border-radius:6px;padding:8px 10px;width:170px;font-size:10px;
+             color:#c5f0d0;line-height:1.5;box-shadow:0 4px 12px rgba(0,0,0,0.5)">
+          <div style="font-weight:700;margin-bottom:3px">&#128161; Tip — History</div>
+          Use the History button to review past AI conversations and generated images from previous iterations.
+          <div style="text-align:right;margin-top:5px">
+            <button onclick="document.getElementById('historyTip').style.display='none'"
+                    style="background:none;border:none;color:#7ecf98;font-size:9px;
+                           cursor:pointer;padding:0;text-decoration:underline">Got it</button>
+          </div>
+          <!-- Arrow pointing up -->
+          <div style="position:absolute;top:-5px;right:14px;width:8px;height:8px;
+               background:#1a2a1a;border-left:1px solid #3a9b54;border-top:1px solid #3a9b54;
+               transform:rotate(45deg)"></div>
+        </div>
+      </div>
+      <a href="/report" target="_blank" id="reportLink"
+         style="display:none;font-family:var(--fm);font-size:9px;color:var(--accent2);
+                background:transparent;border:1px solid var(--accent2);border-radius:20px;
+                padding:2px 9px;letter-spacing:0.04em;text-decoration:none;
+                transition:all 0.15s">View Report</a>
+    </div>
+  </div>
+  <div class="doc-indicator" id="docIndicator">
+    <div class="doc-indicator-dot" id="docIndicatorDot"></div>
+    <span class="doc-indicator-name" id="docIndicatorName">No document connected</span>
+  </div>
+  <nav class="tab-nav">
+    <button class="tab-btn active" id="tab1" onclick="goTab(1)">
+      <span class="tab-num">1</span> Model
+    </button>
+    <button class="tab-btn" id="tab2" onclick="goTab(2)" disabled>
+      <span class="tab-num">2</span> Analysis
+    </button>
+    <button class="tab-btn blue" id="tab3" onclick="goTab(3)" disabled>
+      <span class="tab-num">3</span> Generate
+    </button>
+  </nav>
+</div>
+
+<div class="panels">
+
+  <!-- ══════ PANEL 1: CONNECT + DESCRIBE ══════ -->
+  <div class="panel active" id="panel1">
+
+    <!-- Connection Card -->
+    <div class="card" id="connectionCard">
+      <div class="card-header">
+        <span class="card-tag dim">Link</span>
+        <span class="card-title">Onshape Connection</span>
+      </div>
+      <div class="connection-status" id="connStatus">
+        <div class="status-dot off" id="connDot"></div>
+        <span id="connText" style="color:var(--dim)">Detecting context…</span>
+      </div>
+      <!-- Document picker — shown inside Onshape when auto-detection fails -->
+      <div class="doc-picker" id="docPickerRow">
+        <div class="doc-picker-label">Which document are you working with?</div>
+        <div class="doc-picker-list" id="docPickerList">
+          <div style="font-size:11px;color:var(--dim);padding:6px 0">Loading your documents…</div>
+        </div>
+        <div class="doc-picker-or">— or —</div>
+        <button class="doc-picker-url-btn" onclick="showUrlRow()">Paste a document URL instead</button>
+      </div>
+
+      <div class="url-input-row" id="urlRow">
+        <input type="text" class="url-input" id="urlInput"
+               placeholder="Paste Onshape document URL here…"/>
+        <button class="btn btn-primary btn-sm" onclick="connectFromUrl()">Connect</button>
+      </div>
+      <div id="portalTip" style="display:none;padding:8px 12px 10px;margin-top:2px;
+           border-top:1px solid var(--border);font-size:10px;color:var(--dim);line-height:1.6">
+        <strong style="color:var(--accent);display:block;margin-bottom:3px">
+          Fix auto-connect: Developer Portal action URL
+        </strong>
+        Add these params to the action URL in the Onshape Developer Portal so Onshape
+        substitutes real IDs automatically:
+        <div style="margin-top:5px;padding:5px 7px;background:var(--surface3);
+             border-radius:4px;font-family:var(--fm);font-size:9px;
+             color:var(--text);word-break:break-all;user-select:all">
+          ?documentId={documentId}&workspaceId={workspaceId}&elementId={elementId}
+        </div>
+      </div>
+    </div>
+
+    <!-- View Loader Card -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-tag">Model</span>
+        <span class="card-title">CAD Views</span>
+      </div>
+
+      <!-- Active assembly + Switch Tab row (shown once connected; lives here so
+           it stays visible even after the connection card collapses) -->
+      <div id="tabSwitchRow" style="display:none;padding:5px 12px 6px;
+           border-bottom:1px solid var(--border);
+           align-items:center;gap:8px;font-size:10px">
+        <span style="color:var(--muted);flex-shrink:0">Tab:</span>
+        <span id="activeElemName" style="color:var(--text);flex:1;
+              overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</span>
+        <button class="btn btn-ghost btn-sm" onclick="showElementPicker()"
+                style="font-size:9px;flex-shrink:0">Switch Tab</button>
+        <button class="btn btn-ghost btn-sm" id="switchDocBtn"
+                onclick="openDocumentPicker()"
+                style="font-size:9px;flex-shrink:0;display:none">Switch Doc</button>
+      </div>
+      <!-- Element picker (shown when Switch Tab is clicked) -->
+      <div id="elemPickerRow" style="display:none;padding:6px 12px 8px;
+           border-bottom:1px solid var(--border)">
+        <div style="font-size:9px;color:var(--muted);margin-bottom:5px;
+             text-transform:uppercase;letter-spacing:0.06em">Select assembly / part studio</div>
+        <div id="elemList"></div>
+      </div>
+
+      <div class="view-toolbar">
+        <span class="view-status" id="viewStatus">Not loaded</span>
+        <div style="display:flex;align-items:center;gap:5px">
+          <span id="cacheBadge" style="display:none;font-size:9px;padding:2px 6px;
+                border-radius:10px;background:var(--surface3);color:var(--accent);
+                border:1px solid var(--accent);letter-spacing:0.04em;font-family:var(--fm)">
+            CACHED
+          </span>
+          <!-- Refresh Views — shown when views are already cached -->
+          <button class="btn btn-primary btn-sm" id="refreshBtn" title="Re-fetch from Onshape"
+                  onclick="loadViews(true)" style="display:none">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2.5">
+              <path d="M1 4v6h6M23 20v-6h-6"/>
+              <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/>
+            </svg>
+            Refresh Views
+          </button>
+          <!-- Load Views — shown when no views loaded yet -->
+          <div style="position:relative">
+            <button class="btn btn-primary btn-sm" id="loadBtn" onclick="loadViews(false)">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2.5">
+                <path d="M1 4v6h6M23 20v-6h-6"/>
+                <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/>
+              </svg>
+              Load Views
+            </button>
+            <div id="tip-load" class="onboard-tip" style="display:none;right:0">
+              <div class="onboard-tip-arrow"></div>
+              <strong>Load Views</strong><br>
+              Fetches shaded images of your Onshape assembly. Required before AI analysis.
+              <div class="onboard-tip-foot">
+                <button onclick="_dismissTip('load')">Got it</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="view-tabs" id="viewTabs"></div>
+      <div class="view-display" id="viewDisplay">
+        <div class="view-placeholder">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+          </svg>
+          <span>Connect to Onshape, then load views</span>
+        </div>
+      </div>
+      <div class="thumb-strip" id="thumbStrip"></div>
+      <div style="padding:0 14px">
+        <div class="loader" id="viewLoader"></div>
+        <div class="loader-label" id="viewLoaderLabel" style="padding-bottom:8px">
+          Loading views…
+        </div>
+      </div>
+    </div>
+
+    <!-- Skip to Generation -->
+    <div id="skipToGenBtn" style="display:none">
+      <button class="btn btn-primary blue btn-nav" onclick="goTab(3)">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.5">
+          <path d="M12 2l9 9-9 9M3 12h18"/>
+        </svg>
+        Skip to Image Generation
+      </button>
+    </div>
+
+    <!-- Describe Card -->
+    <div class="card" style="overflow:visible">
+      <div class="card-header">
+        <span class="card-tag">01</span>
+        <span class="card-title">Describe Your Design</span>
+      </div>
+      <div class="card-body">
+        <label class="input-label" for="descInput">What is your design?</label>
+        <textarea id="descInput" rows="4" maxlength="600"
+          placeholder="e.g. A triangular pencil holder built from LEGO Technic beams, three vertical columns, open top, roughly 15cm tall."
+          oninput="updateChar('descInput','descCount')"></textarea>
+        <div class="char-hint"><span id="descCount">0</span> / 600</div>
+        <div class="btn-row" style="position:relative">
+          <button class="btn btn-primary" id="analyseBtn" onclick="submitDescription()">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2.5">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+            Analyse
+          </button>
+          <button class="btn btn-ghost" onclick="clearField('descInput','descCount')">Clear</button>
+          <div id="tip-analyse" class="onboard-tip" style="display:none;left:0">
+            <div class="onboard-tip-arrow"></div>
+            <strong>Analyse</strong><br>
+            Sends your description + CAD views to the AI for design feedback and suggestions.
+            <div class="onboard-tip-foot">
+              <button onclick="_dismissTip('analyse')">Got it</button>
+            </div>
+          </div>
+        </div>
+        <div class="loader" id="analyseLoader"></div>
+        <div class="loader-label" id="analyseLoaderLabel">Running AI analysis…</div>
+      </div>
+    </div>
+
+  </div><!-- /panel1 -->
+
+  <!-- ══════ PANEL 2: AI ANALYSIS ══════ -->
+  <div class="panel" id="panel2">
+    <div class="card scrollable">
+      <div class="card-header">
+        <span class="card-tag">AI</span>
+        <span class="card-title">Functionality Suggestions</span>
+      </div>
+      <div class="info-row">
+        <strong>Design</strong>
+        <span id="descSummary" style="color:var(--text);font-size:11px;max-width:240px;
+              white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</span>
+      </div>
+      <div class="ai-output" id="aiText"></div>
+    </div>
+
+    <button class="btn btn-primary btn-nav" onclick="goTab(3)">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2.5">
+        <path d="M5 12h14M12 5l7 7-7 7"/>
+      </svg>
+      Continue to Generation
+    </button>
+  </div><!-- /panel2 -->
+
+  <!-- ══════ PANEL 3: GENERATE ══════ -->
+  <div class="panel" id="panel3">
+
+    <!-- Finish-iteration prompt (shown on tab 3 once views are loaded) -->
+    <div id="finishPromptBanner" style="display:none;margin:0 0 10px;padding:10px 14px;
+         border-radius:var(--r);background:#0d1f15;border:1px solid #2a6b3a;
+         align-items:center;justify-content:space-between;gap:8px">
+      <span style="font-size:11px;color:#7ecf98;line-height:1.4">
+        Done with this iteration? Finish before returning to CAD.
+      </span>
+      <button class="btn btn-sm" onclick="finishIteration()"
+              style="flex-shrink:0;font-size:10px;font-weight:700;
+                     background:#2a6b3a;color:#c5f0d0;border:1px solid #3a9b54;
+                     border-radius:var(--r);padding:5px 10px;cursor:pointer;
+                     transition:background 0.15s"
+              onmouseover="this.style.background='#3a9b54'"
+              onmouseout="this.style.background='#2a6b3a'">
+        &#10003; Finish Iteration
+      </button>
+    </div>
+
+    <!-- Post-generate banner (shown after image generates) -->
+    <div id="postGenBanner" style="display:none;margin:0 0 10px;padding:10px 14px;
+         border-radius:var(--r);background:#0d1a2a;border:1px solid #1e5a8a;
+         align-items:center;justify-content:space-between;gap:8px">
+      <span style="font-size:11px;color:#7ec8f0;line-height:1.4">
+        Image generated. Generate more variations, or finish this iteration.
+      </span>
+      <button onclick="document.getElementById('postGenBanner').style.display='none'"
+              style="background:none;border:none;color:var(--dim);font-size:16px;
+                     cursor:pointer;line-height:1;flex-shrink:0">&times;</button>
+    </div>
+
+    <div class="card" style="overflow:visible">
+      <div class="card-header">
+        <span class="card-tag blue">02</span>
+        <span class="card-title">Your Next Step</span>
+      </div>
+      <div class="card-body">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <label class="input-label" for="nextInput" style="margin-bottom:0">Describe your modification</label>
+          <span id="prevConceptBadge" style="display:none;font-size:9px;font-weight:700;
+                letter-spacing:0.06em;text-transform:uppercase;color:#47b8e8;
+                background:#0d1e2a;border:1px solid #47b8e8;border-radius:10px;
+                padding:1px 7px">&#128065; AI sees prev image</span>
+        </div>
+        <textarea id="nextInput" class="blue" rows="3" maxlength="400"
+          placeholder="e.g. Add a telescoping height adjustment mechanism to the base."
+          oninput="updateChar('nextInput','nextCount')"></textarea>
+        <div class="char-hint"><span id="nextCount">0</span> / 400</div>
+        <div class="btn-row" style="position:relative">
+          <button class="btn btn-primary blue" id="generateBtn" onclick="submitNextStep()">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2.5">
+              <path d="M12 2l9 9-9 9M3 12h18"/>
+            </svg>
+            Generate Concept
+          </button>
+          <button class="btn btn-ghost" onclick="clearField('nextInput','nextCount')">Clear</button>
+          <div id="tip-generate" class="onboard-tip" style="display:none;left:0">
+            <div class="onboard-tip-arrow"></div>
+            <strong>Generate Concept</strong><br>
+            The AI reads your CAD views + description and generates a visual concept image of your proposed change.
+            <div class="onboard-tip-foot">
+              <button onclick="_dismissTip('generate')">Got it</button>
+            </div>
+          </div>
+        </div>
+        <div class="loader blue" id="generateLoader"></div>
+        <div class="loader-label" id="generateLoaderLabel">
+          Grounding prompt from views, then generating…
+        </div>
+      </div>
+    </div>
+
+    <!-- Concept Gallery — thumbnail strip + active large view -->
+    <div class="card" id="conceptGalleryCard" style="display:none">
+      <div class="card-header" style="gap:8px">
+        <span class="card-tag blue">Concept</span>
+        <span class="card-title" id="conceptTitle"
+              style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+                     max-width:170px;flex:1">Visual Concept</span>
+        <span class="concept-counter" id="conceptCounter"></span>
+      </div>
+
+      <!-- Scrollable thumbnail strip — one thumb per generation -->
+      <div class="concept-strip" id="conceptStrip"></div>
+
+      <!-- Active large image -->
+      <div style="padding:10px 12px 12px">
+        <div id="conceptImgWrap"
+             style="border-radius:var(--r);overflow:hidden;border:1px solid var(--border);
+                    background:#08080a;aspect-ratio:1;display:flex;
+                    align-items:center;justify-content:center">
+          <div class="concept-placeholder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"
+                 style="width:28px;height:28px">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <path d="m21 15-5-5L5 21"/>
+            </svg>
+            <span>Image will appear here</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /panel3 -->
+
+</div><!-- /panels -->
+
+<!-- FULLSCREEN MODAL -->
+<div class="modal" id="modal" onclick="closeModal()">
+  <span class="modal-close">&times;</span>
+  <img id="modalImg" src="" alt=""/>
+  <div class="modal-label" id="modalLabel"></div>
+</div>
+
+<!-- HISTORY MODAL -->
+<div class="modal" id="historyModal" onclick="closeHistory(event)">
+  <div style="background:var(--surface);border:1px solid var(--border);
+              border-radius:10px;width:min(560px,94vw);max-height:88vh;
+              overflow-y:auto;cursor:default" onclick="event.stopPropagation()">
+    <div style="display:flex;align-items:center;justify-content:space-between;
+                padding:12px 16px;border-bottom:1px solid var(--border)">
+      <span style="font-size:13px;font-weight:700;color:var(--text-hi)">Design History</span>
+      <button onclick="closeHistory()" style="background:none;border:none;
+              color:var(--dim);font-size:20px;cursor:pointer;line-height:1">&times;</button>
+    </div>
+    <div id="historyBody" style="padding:14px 16px;font-size:12px;color:var(--text)">
+      <div style="color:var(--muted)">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+  let userDescription = '';
+  let loadedViews     = {};
+  let currentTab        = 1;
+  let iterationLog      = [];
+  let contextReady      = false;
+  let iterationCount    = 1;
+  let currentReportUrl  = '';
+  let _stateRestored    = false;  // true after first connection's UI restore runs
+  let _currentDocId     = null;
+  let _currentWid       = null;
+  let _currentEid       = null;
+  let _currentWvm       = 'w';
+  let _currentElemName  = null;
+  let _currentDocName   = null;
+  let _manualElemId     = null;   // set by switchToElement, cleared on doc change
+  const _DOC_CACHE_KEY = 'designloop_doclist_v1';
+  const _DOC_CACHE_TTL = 90000;   // 90 s
+  const _LAST_DOC_KEY  = 'designloop_lastdoc_v1';
+
+  // Returns the full document context object to attach to any API request.
+  function _ctx() {
+    return {
+      documentId:  _currentDocId  || '',
+      workspaceId: _currentWid    || '',
+      elementId:   _currentEid    || '',
+      wvm:         _currentWvm    || 'w',
+    };
+  }
+
+  // Onshape context bootstrap — tries multiple methods to get documentId / workspaceId / elementId.
+  function isRealId(val) {
+    // Real Onshape IDs are 24-char hex; placeholders look like {documentId}
+    return val && !val.startsWith('{') && !val.endsWith('}') && val.length > 8;
+  }
+
+  function _parseOnshapeMsg(d) {
+    if (!d || typeof d !== 'object') return null;
+    const did = d.documentId || d.did;
+    const wid = d.workspaceId || d.workspaceid || d.wid;
+    const eid = d.elementId   || d.elementid   || d.eid;
+    const wvm = d.wvmType     || d.wvm         || 'w';
+    if (isRealId(did) && isRealId(wid) && isRealId(eid))
+      return { did, wid, eid, wvm };
+    return null;
+  }
+
+  async function sendContextToServer(documentId, workspaceId, elementId, wvm = 'w') {
+    try {
+      // If the user manually picked a different element within the same document
+      // (via Switch Tab), honour that choice even when Onshape keeps broadcasting
+      // its own context (which always carries the original elementId).
+      let effectiveEid = elementId;
+      if (_currentDocId && _currentDocId === documentId && _manualElemId) {
+        effectiveEid = _manualElemId;
+      } else if (_currentDocId !== documentId) {
+        // Document changed — drop any manual override so the new doc starts fresh
+        _manualElemId = null;
+      }
+      // Store context immediately so _ctx() is correct even before server responds.
+      _currentDocId = documentId;
+      _currentWid   = workspaceId;
+      _currentEid   = effectiveEid;
+      _currentWvm   = wvm || 'w';
+
+      const resp = await fetch('/set-context', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ documentId, workspaceId, elementId: effectiveEid, wvm }),
+      });
+      const data = await resp.json();
+      if (data.error) {
+        setConnection('warn', 'Context error: ' + data.error, false);
+        return false;
+      }
+      if (contextReady) toast('Assembly switched — context updated');
+      _applyConnectionResult(data);
+      return true;
+    } catch (e) {
+      setConnection('warn', 'Could not set context: ' + e.message, false);
+      return false;
+    }
+  }
+
+  function _applyConnectionResult(data) {
+    // Sync iteration counter from server (persisted per-document)
+    if (data.current_iteration && data.current_iteration >= 1) {
+      iterationCount = data.current_iteration;
+      document.getElementById('iterBadge').textContent = 'Iteration ' + iterationCount;
+    }
+    const label = data.doc_name ? ' · ' + data.doc_name : '';
+    setConnection('ok', 'Connected' + label, true);
+    setTimeout(() => _showTip('load'), 600);
+
+    if (data.documentId) {
+      if (_currentDocId && _currentDocId !== data.documentId) {
+        _manualElemId = null; // new document — clear any old override
+        // Clear stale views and the document indicator
+        loadedViews = {};
+        document.getElementById('docIndicatorDot').className  = 'doc-indicator-dot';
+        document.getElementById('docIndicatorName').className = 'doc-indicator-name';
+        document.getElementById('docIndicatorName').textContent = 'Switching document…';
+        document.getElementById('viewTabs').innerHTML       = '';
+        document.getElementById('viewStatus').textContent   = 'Not loaded';
+        try { document.getElementById('thumbStrip').innerHTML   = ''; } catch (_) {}
+        try { document.getElementById('cacheBadge').style.display  = 'none'; } catch (_) {}
+        try { document.getElementById('refreshBtn').style.display  = 'none'; } catch (_) {}
+        try { document.getElementById('loadBtn').style.display     = '';     } catch (_) {}
+        try {
+          document.getElementById('viewDisplay').innerHTML =
+            '<div class="view-placeholder"><span>Document changed — click Load Views.</span></div>';
+        } catch (_) {}
+      }
+      _currentDocId    = data.documentId;
+      _currentWid      = data.workspaceId  || _currentWid;
+      _currentEid      = data.elementId    || _currentEid;
+      _currentWvm      = data.wvm          || _currentWvm || 'w';
+      _currentElemName = data.element_name || _currentElemName;
+      _currentDocName  = data.doc_name     || _currentDocName;
+    }
+
+    // Remember this document so the next startup can auto-reconnect
+    if (data.documentId && data.workspaceId && data.elementId) {
+      try {
+        localStorage.setItem(_LAST_DOC_KEY, JSON.stringify({
+          documentId:  data.documentId,
+          workspaceId: data.workspaceId,
+          elementId:   data.elementId,
+          wvm:         data.wvm          || 'w',
+          doc_name:    data.doc_name     || '',
+          elem_name:   data.element_name || '',
+        }));
+      } catch (_) {}
+    }
+
+    const docName  = data.doc_name     || data.documentId || 'Unknown document';
+    const elemName = data.element_name || '';
+    const indicatorLabel = elemName ? docName + '  ·  ' + elemName : docName;
+    document.getElementById('docIndicatorDot').className  = 'doc-indicator-dot connected';
+    document.getElementById('docIndicatorName').className = 'doc-indicator-name connected';
+    document.getElementById('docIndicatorName').textContent = indicatorLabel;
+
+    const tabRow = document.getElementById('tabSwitchRow');
+    if (tabRow) {
+      document.getElementById('activeElemName').textContent = elemName || '—';
+      tabRow.style.display = 'flex';
+      // Show "Switch Doc" only when inside Onshape (where auto-detection can't
+      // determine which document is open — the picker is the only reliable way)
+      const switchDocBtn = document.getElementById('switchDocBtn');
+      if (switchDocBtn) switchDocBtn.style.display = '';
+    }
+
+    // Check if assembly has been modified since views were last cached
+    _checkModelChanged();
+
+    if (data.cache_hit) {
+      try {
+        document.getElementById('viewStatus').textContent =
+          (data.doc_name || 'Document') + ' — previously cached · auto-loading…';
+        document.getElementById('cacheBadge').style.display = '';
+      } catch (e) { console.warn('[DesignLoop] viewStatus update failed:', e); }
+      console.log('[DesignLoop] cache_hit — scheduling auto-load');
+      setTimeout(() => loadViews(false, true), 200); // true bypasses contextReady guard
+    }
+
+    // Show Finish Iteration button if this document has prior work
+    const _ctx = data.current_context || {};
+    if ((data.current_iteration && data.current_iteration > 1) ||
+        _ctx.description || _ctx.analysis) {
+      showResetBtn();
+    }
+
+    // Restore in-progress iteration state after app reopen (runs once per page load)
+    if (!_stateRestored && data.documentId) {
+      _stateRestored = true;
+      _restoreIterationState(_ctx, data.documentId);
+    }
+  }
+
+  async function _restoreIterationState(ctx, docId) {
+    if (!ctx || (!ctx.description && !ctx.analysis)) return;
+
+    // Restore description textarea
+    if (ctx.description) {
+      const ta = document.getElementById('descInput');
+      if (ta) {
+        ta.value = ctx.description;
+        updateChar('descInput', 'descCount');
+      }
+      userDescription = ctx.description;
+      const sumEl = document.getElementById('descSummary');
+      if (sumEl) sumEl.textContent = ctx.description;
+    }
+
+    // Restore analysis output and unlock tabs
+    if (ctx.analysis) {
+      const aiEl = document.getElementById('aiText');
+      if (aiEl) aiEl.textContent = ctx.analysis;
+      enableTab(2);
+      enableTab(3, true);
+      markTabDone(1);
+      showResetBtn();
+      // Go to analysis tab so the user sees where they left off
+      goTab(2);
+    }
+
+    // Restore generated concepts for this iteration via history endpoint
+    try {
+      const resp = await fetch(
+        '/get-iteration-history?documentId=' + encodeURIComponent(docId),
+        { credentials: 'include' }
+      );
+      if (!resp.ok) return;
+      const hist = await resp.json();
+      const currentConcepts = (hist.current_context || {}).concepts || [];
+      if (currentConcepts.length > 0) {
+        document.getElementById('conceptGalleryCard').style.display = '';
+        for (const c of currentConcepts) {
+          if (c.image_url) {
+            addIteration(c.direction || '', c.image_url, '');
+          }
+        }
+        // Stay on analysis tab — user can navigate to generation if desired
+      }
+    } catch (e) {
+      console.warn('[DesignLoop] restore concepts failed:', e);
+    }
+  }
+
+  // Persistent message watcher — set up once, never removed.
+  // Handles initial context and automatic assembly switches.
+  (function startContextWatcher() {
+    window.addEventListener('message', function(event) {
+      try {
+        fetch('/debug-onshape-msg', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ raw: event.data, origin: event.origin }),
+        }).catch(() => {});
+      } catch (_) {}
+
+      if (!event.origin.includes('onshape.com')) return;
+      const ctx = _parseOnshapeMsg(event.data);
+      if (ctx) sendContextToServer(ctx.did, ctx.wid, ctx.eid, ctx.wvm);
+    });
+  })();
+
+  function requestOnshapeContext() {
+    if (window.parent === window) return;
+    // Use '*' as target so the message reaches the parent even if its origin
+    // differs from cad.onshape.com (e.g. a CDN subdomain).
+    // We're only sending a "ready" signal — no sensitive data.
+    const msg1 = { messageType: 'applicationFrameHostLoaded' };
+    const msg2 = { action: 'ready' };
+    const msg3 = { type: 'ready' };
+    window.parent.postMessage(msg1, '*');
+    window.parent.postMessage(msg2, '*');
+    window.parent.postMessage(msg3, '*');
+    // Also try window.top in case we're nested inside an intermediate frame
+    if (window.top !== window.parent) {
+      window.top.postMessage(msg1, '*');
+      window.top.postMessage(msg2, '*');
+      window.top.postMessage(msg3, '*');
+    }
+  }
+
+  if (window.parent !== window) requestOnshapeContext();
+
+  (async function bootstrapContext() {
+    const params      = new URLSearchParams(window.location.search);
+    const documentId  = params.get('documentId');
+    const workspaceId = params.get('workspaceId');
+    const elementId   = params.get('elementId');
+    const wvm         = params.get('wvm') || params.get('wvmType') || 'w';
+    // inOnshape: any recognised Onshape query param is present
+    const inOnshape   = params.has('server') || params.has('companyId') ||
+                        params.has('documentId') || params.has('elementId');
+
+    console.log('[DesignLoop] bootstrap — inOnshape:', inOnshape,
+                '| documentId:', documentId, '| referrer:', document.referrer.slice(0, 80));
+
+    fetch('/debug-context', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        urlParams: {
+          documentId:  documentId  || '',
+          workspaceId: workspaceId || '',
+          elementId:   elementId   || '',
+          wvm:         wvm         || '',
+          allParams:   Object.fromEntries(params.entries()),
+        },
+        referrer:   document.referrer,
+        inOnshape:  inOnshape,
+        detectedIds: {
+          documentIdIsReal:  isRealId(documentId),
+          workspaceIdIsReal: isRealId(workspaceId),
+          elementIdIsReal:   isRealId(elementId),
+        },
+      }),
+    }).catch(() => {});  // fire-and-forget, don't block bootstrap
+
+    // ── Method 1: All three IDs substituted by Developer Portal ──────────────
+    if (isRealId(documentId) && isRealId(workspaceId) && isRealId(elementId)) {
+      console.log('[DesignLoop] Method 1: full URL params');
+      await sendContextToServer(documentId, workspaceId, elementId, wvm);
+      return;
+    }
+
+    // ── Standalone (not embedded in Onshape) — show URL paste immediately ─────
+    if (!inOnshape) {
+      setConnection('off', 'Not inside Onshape — paste a document URL below', false);
+      document.getElementById('urlRow').classList.add('show');
+      return;
+    }
+
+    setConnection('warn', 'Connecting to Onshape…', false);
+
+    // ── Method 1.5: documentId substituted but workspace/element missing ──────
+    if (isRealId(documentId)) {
+      console.log('[DesignLoop] Method 1.5: resolve-context for', documentId);
+      setConnection('warn', 'Resolving document…', false);
+      try {
+        const resp = await fetch('/resolve-context', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ documentId, workspaceId, elementId, wvm }),
+        });
+        const data = await resp.json();
+        if (!data.error) { _applyConnectionResult(data); return; }
+        console.warn('[DesignLoop] resolve-context failed:', data.error);
+      } catch (e) { console.warn('[DesignLoop] resolve-context error:', e); }
+    }
+
+    // ── Method 2: document.referrer ──────────────────────────────────────────
+    // Onshape sidebar iframes set document.referrer to the full document URL.
+    const refMatch = document.referrer.match(
+      /documents\/([a-f0-9]+)\/(w|v|m)\/([a-f0-9]+)\/e\/([a-f0-9]+)/i
+    );
+    if (refMatch) {
+      const [, rDid, rWvm, rWid, rEid] = refMatch;
+      console.log('[DesignLoop] Method 2: document.referrer matched doc', rDid);
+      setConnection('warn', 'Found document via referrer…', false);
+      const ok = await sendContextToServer(rDid, rWid, rEid, rWvm);
+      if (ok) return;
+    } else {
+      console.log('[DesignLoop] Method 2: document.referrer did not match — referrer was:',
+                  document.referrer || '(empty)');
+    }
+
+    // ── Fast-path: left-panel app with no URL substitution ───────────────────
+    // URL placeholders are literal — skip the 3 s + 8 s waits entirely.
+    if (!isRealId(documentId) && !isRealId(workspaceId) && !isRealId(elementId)) {
+
+      // Try the remembered document first (auto-reconnect)
+      try {
+        const raw = localStorage.getItem(_LAST_DOC_KEY);
+        if (raw) {
+          const last = JSON.parse(raw);
+          if (last && last.documentId && last.workspaceId && last.elementId) {
+            const docLabel = last.doc_name || last.documentId.slice(0, 8) + '…';
+            console.log('[DesignLoop] Auto-reconnecting to last document:', docLabel);
+            setConnection('warn', 'Reconnecting to ' + docLabel + '…', false);
+            const ok = await sendContextToServer(
+              last.documentId, last.workspaceId, last.elementId, last.wvm || 'w');
+            if (ok) return;
+            console.warn('[DesignLoop] Auto-reconnect failed, showing picker');
+          }
+        }
+      } catch (_) { /* corrupt cache — fall through */ }
+
+      console.log('[DesignLoop] Showing document picker');
+      await showDocumentPicker();
+      return;
+    }
+
+    // ── Method 3: applicationExtensionController.onInit (Onshape JS API) ─────
+    // Wait up to 3 s for Onshape to call onInit(appHandle).
+    console.log('[DesignLoop] Method 3: waiting for applicationExtensionController.onInit…');
+    const aecCtx = await new Promise(resolve => {
+      // Already received before bootstrap reached this point?
+      if (window._onshapeInitCtx && isRealId(window._onshapeInitCtx.did)) {
+        return resolve(window._onshapeInitCtx);
+      }
+      // Register callback; _captureAppHandle (in <head>) will call it
+      window._onshapeInitCb = function(did, wid, eid, wvm) {
+        window._onshapeInitCb = null;
+        resolve({ did, wid, eid, wvm });
+      };
+      setTimeout(() => {
+        window._onshapeInitCb = null;
+        resolve(null);
+      }, 3000);
+    });
+
+    if (aecCtx && isRealId(aecCtx.did)) {
+      console.log('[DesignLoop] Method 3: onInit delivered context', aecCtx);
+      const ok = await sendContextToServer(aecCtx.did, aecCtx.wid, aecCtx.eid, aecCtx.wvm);
+      if (ok) return;
+    } else {
+      console.log('[DesignLoop] Method 3: onInit timed out or returned no real IDs');
+    }
+
+    // ── Method 4: postMessage handshake — wait up to 8 s ────────────────────
+    console.log('[DesignLoop] Method 4: postMessage handshake (8s window)');
+    setConnection('warn', 'Waiting for Onshape to send document context…', false);
+
+    const pmCtx = await new Promise(resolve => {
+      const timer = setTimeout(() => {
+        clearInterval(retryInterval);
+        window.removeEventListener('message', ph);
+        resolve(null);
+      }, 8000);
+
+      // Re-send the trigger every 2s in case Onshape missed the first one
+      requestOnshapeContext();
+      const retryInterval = setInterval(requestOnshapeContext, 2000);
+
+      function ph(event) {
+        if (!event.origin.includes('onshape.com')) return;
+        const ctx = _parseOnshapeMsg(event.data);
+        if (ctx) {
+          clearTimeout(timer);
+          clearInterval(retryInterval);
+          window.removeEventListener('message', ph);
+          console.log('[DesignLoop] Method 4: postMessage received from Onshape', ctx);
+          resolve(ctx);
+        }
+      }
+      window.addEventListener('message', ph);
+    });
+
+    if (pmCtx) {
+      await sendContextToServer(pmCtx.did, pmCtx.wid, pmCtx.eid, pmCtx.wvm);
+      return;
+    }
+
+    // ── Method 5: Document picker ─────────────────────────────────────────────
+    console.log('[DesignLoop] Method 5: showing document picker');
+    await showDocumentPicker();
+  })();
+
+  function setConnection(status, text, ready) {
+    const dot  = document.getElementById('connDot');
+    const txt  = document.getElementById('connText');
+    dot.className = 'status-dot ' + status;
+    txt.textContent = text;
+    contextReady = ready;
+
+    if (ready) {
+      document.getElementById('urlRow').classList.remove('show');
+      document.getElementById('docPickerRow').classList.remove('show');
+      setTimeout(() => {
+        document.getElementById('connectionCard').style.display = 'none';
+      }, 2000);
+    }
+  }
+
+  // Document picker
+  function showUrlRow() {
+    document.getElementById('urlRow').classList.add('show');
+    document.getElementById('urlInput').focus();
+  }
+
+  function openDocumentPicker() {
+    const card = document.getElementById('connectionCard');
+    if (card) card.style.display = '';
+    // Clear the remembered doc so the picker appears on next startup too
+    // (user explicitly wants to switch)
+    try { localStorage.removeItem(_LAST_DOC_KEY); } catch (_) {}
+    showDocumentPicker();
+  }
+
+  function _renderDocList(list, pickerRow, documents) {
+    list.innerHTML = '';
+    documents.forEach(doc => {
+      const item = document.createElement('div');
+      item.className = 'doc-picker-item';
+
+      let dateLabel = '';
+      if (doc.modifiedAt) {
+        const diff = Date.now() - new Date(doc.modifiedAt).getTime();
+        if      (diff < 60000)    dateLabel = 'just now';
+        else if (diff < 3600000)  dateLabel = Math.round(diff / 60000)   + 'm ago';
+        else if (diff < 86400000) dateLabel = Math.round(diff / 3600000) + 'h ago';
+        else                      dateLabel = Math.round(diff / 86400000) + 'd ago';
+      }
+
+      item.innerHTML = `
+        ${doc.cache_hit
+          ? '<span class="doc-picker-cache" title="Views cached"></span>'
+          : '<span style="width:6px;flex-shrink:0"></span>'}
+        <span class="doc-picker-name" title="${doc.doc_name}">${doc.doc_name}</span>
+        ${doc.current_iteration > 0
+          ? `<span class="doc-picker-meta">iter ${doc.current_iteration}</span>`
+          : ''}
+        <span class="doc-picker-meta">${dateLabel}</span>
+      `;
+
+      item.addEventListener('click', async () => {
+        if (item.classList.contains('loading')) return;
+        item.classList.add('loading');
+        pickerRow.classList.remove('show');
+        await sendContextToServer(doc.documentId, doc.workspaceId, doc.elementId, doc.wvm);
+      });
+
+      list.appendChild(item);
+    });
+  }
+
+  async function showDocumentPicker() {
+    const pickerRow = document.getElementById('docPickerRow');
+    const list      = document.getElementById('docPickerList');
+    pickerRow.classList.add('show');
+    setConnection('warn', 'Select the document you have open in Onshape…', false);
+
+    // Serve from localStorage cache immediately if fresh
+    let servedFromCache = false;
+    try {
+      const raw = localStorage.getItem(_DOC_CACHE_KEY);
+      if (raw) {
+        const { ts, documents } = JSON.parse(raw);
+        if (documents && documents.length && (Date.now() - ts) < _DOC_CACHE_TTL) {
+          _renderDocList(list, pickerRow, documents);
+          servedFromCache = true;
+          // Refresh silently in the background so next open is fresh
+          fetch('/list-documents', { credentials: 'include' })
+            .then(r => r.json())
+            .then(d => {
+              if (d.documents && d.documents.length) {
+                localStorage.setItem(_DOC_CACHE_KEY, JSON.stringify({ ts: Date.now(), documents: d.documents }));
+                // Update the list in place (user may still be looking at picker)
+                if (pickerRow.classList.contains('show')) {
+                  _renderDocList(list, pickerRow, d.documents);
+                }
+              }
+            })
+            .catch(() => {});
+          return;
+        }
+      }
+    } catch (_) {}
+
+    try {
+      const resp = await fetch('/list-documents', { credentials: 'include' });
+      const data = await resp.json();
+
+      if (data.error || !data.documents || !data.documents.length) {
+        list.innerHTML = '<div style="font-size:11px;color:var(--dim);padding:6px 0">' +
+          'No documents found. Paste the URL below.</div>';
+        showUrlRow();
+        return;
+      }
+
+      localStorage.setItem(_DOC_CACHE_KEY, JSON.stringify({ ts: Date.now(), documents: data.documents }));
+      _renderDocList(list, pickerRow, data.documents);
+    } catch (e) {
+      list.innerHTML = '<div style="font-size:11px;color:var(--dim)">Failed to load documents: ' + e.message + '</div>';
+      showUrlRow();
+    }
+  }
+
+  async function connectFromUrl() {
+    const url = document.getElementById('urlInput').value.trim();
+    if (!url) { toast('Please paste an Onshape URL.'); return; }
+
+    try {
+      const resp = await fetch('/set-context', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ onshapeUrl: url }),
+      });
+      const data = await resp.json();
+      if (data.error) {
+        toast(data.error);
+        setConnection('warn', 'Invalid URL — check format', false);
+      } else {
+        _applyConnectionResult(data);
+        if (!data.cache_hit) toast('Connected! You can now load views.');
+      }
+    } catch (e) {
+      toast('Connection failed: ' + e.message);
+    }
+  }
+
+  // Element (tab) switcher
+  async function showElementPicker() {
+    const pickerRow = document.getElementById('elemPickerRow');
+    if (pickerRow.style.display !== 'none') {
+      pickerRow.style.display = 'none';
+      return;
+    }
+    try {
+      const _params = new URLSearchParams(_ctx());
+      const resp = await fetch('/get-elements?' + _params, { credentials: 'include' });
+      const data = await resp.json();
+      if (data.error) { toast(data.error); return; }
+
+      const list = document.getElementById('elemList');
+      list.innerHTML = '';
+      if (!data.elements || !data.elements.length) {
+        list.innerHTML = '<span style="font-size:10px;color:var(--dim)">No assemblies found.</span>';
+      }
+      data.elements.forEach(elem => {
+        const typeLabel = elem.type === 'PARTSTUDIO' ? ' (Part Studio)' : '';
+        const activeMark = elem.current ? ' ✓' : '';
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-ghost btn-sm';
+        btn.style.cssText = 'display:block;width:100%;text-align:left;margin-bottom:4px;padding:5px 8px;font-size:10px;' +
+          (elem.current ? 'color:var(--accent);border-color:var(--accent)' : '');
+        btn.textContent = elem.name + typeLabel + activeMark;
+        btn.onclick = () => switchToElement(elem.id, elem.name);
+        list.appendChild(btn);
+      });
+      pickerRow.style.display = '';
+    } catch (e) {
+      toast('Could not fetch elements: ' + e.message);
+    }
+  }
+
+  async function switchToElement(eid, name) {
+    try {
+      // Record the manual choice BEFORE sending to server so that any
+      // concurrent Onshape postMessage handlers don't override it
+      _manualElemId = eid;
+
+      const resp = await fetch('/switch-element', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          ..._ctx(),
+          elementId:   eid,
+          elementName: name,
+          doc_name:    _currentDocName || '',
+        }),
+      });
+      const data = await resp.json();
+      if (data.error) { _manualElemId = null; toast(data.error); return; }
+
+      document.getElementById('elemPickerRow').style.display = 'none';
+      document.getElementById('activeElemName').textContent = name;
+      _applyConnectionResult(data);
+      toast('Switched to ' + name);
+
+      // Clear any stale views from the previous element
+      loadedViews = {};
+      document.getElementById('viewStatus').textContent = 'Not loaded';
+      document.getElementById('cacheBadge').style.display = 'none';
+      document.getElementById('refreshBtn').style.display = 'none';
+      document.getElementById('loadBtn').style.display    = '';
+      document.getElementById('viewTabs').innerHTML = '';
+      document.getElementById('thumbStrip').innerHTML = '';
+      document.getElementById('viewDisplay').innerHTML =
+        '<div class="view-placeholder"><span>Views cleared — click Load Views for the new tab.</span></div>';
+    } catch (e) {
+      toast('Could not switch element: ' + e.message);
+    }
+  }
+
+  function _autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  }
+  function updateChar(ta, span) {
+    const el = document.getElementById(ta);
+    document.getElementById(span).textContent = el.value.length;
+    _autoResize(el);
+  }
+  function clearField(ta, span) {
+    const el = document.getElementById(ta);
+    el.value = '';
+    document.getElementById(span).textContent = '0';
+    _autoResize(el);
+  }
+  function toast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('on');
+    setTimeout(() => t.classList.remove('on'), 4500);
+  }
+  function setLoader(id, labelId, on) {
+    document.getElementById(id).classList.toggle('on', on);
+    document.getElementById(labelId).classList.toggle('on', on);
+  }
+  function openModal(src, label) {
+    document.getElementById('modalImg').src = src;
+    document.getElementById('modalLabel').textContent = label || '';
+    document.getElementById('modal').classList.add('on');
+  }
+  function closeModal() { document.getElementById('modal').classList.remove('on'); }
+
+  function goTab(n) {
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
+    document.getElementById('panel' + n).classList.add('active');
+    const btn = document.getElementById('tab' + n);
+    btn.classList.add('active');
+    currentTab = n;
+    if (n === 3) setTimeout(() => _showTip('generate'), 400);
+  }
+  function enableTab(n, blue) {
+    const btn = document.getElementById('tab' + n);
+    btn.disabled = false;
+    if (blue) btn.classList.add('blue');
+  }
+  function markTabDone(n) {
+    const btn = document.getElementById('tab' + n);
+    btn.classList.add('done');
+    btn.classList.remove('active');
+  }
+
+  // _autoLoad=true bypasses contextReady guard when connection was just confirmed via cache_hit
+  async function loadViews(forceRefresh = false, _autoLoad = false) {
+    if (!contextReady && !_autoLoad) {
+      toast('Connect to Onshape first — paste a URL or open from inside Onshape.');
+      return;
+    }
+    console.log('[DesignLoop] loadViews called — forceRefresh:', forceRefresh, '_autoLoad:', _autoLoad);
+    document.getElementById('loadBtn').disabled    = true;
+    document.getElementById('refreshBtn').disabled = true;
+    document.getElementById('viewLoaderLabel').textContent =
+      forceRefresh ? 'Fetching fresh views from Onshape…' : 'Loading views…';
+    setLoader('viewLoader', 'viewLoaderLabel', true);
+    document.getElementById('viewStatus').textContent = 'Loading…';
+    try {
+      const resp = await fetch('/get-views', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          force_refresh: forceRefresh,
+          ..._ctx(),
+          doc_name:  _currentDocName  || '',
+          elem_name: _currentElemName || '',
+        }),
+      });
+      const data = await resp.json();
+      if (data.error) { toast('View error: ' + data.error); return; }
+      renderViewPanel(data.views, data.from_cache);
+      enableTab(3, true);
+      document.getElementById('skipToGenBtn').style.display = '';
+      showResetBtn();
+      _dismissTip('load');
+      setTimeout(() => _showTip('analyse'), 400);
+    } catch (e) {
+      toast('Could not reach server: ' + e.message);
+    } finally {
+      document.getElementById('loadBtn').disabled    = false;
+      document.getElementById('refreshBtn').disabled = false;
+      setLoader('viewLoader', 'viewLoaderLabel', false);
+    }
+  }
+
+  function renderViewPanel(views, fromCache = false) {
+    loadedViews = views;
+    const names = Object.keys(views);
+    if (!names.length) { toast('No views returned.'); return; }
+
+    const n = names.length;
+    document.getElementById('viewStatus').textContent =
+      n + ' view' + (n > 1 ? 's' : '') + (fromCache ? ' · cached' : ' · live');
+
+    document.getElementById('cacheBadge').style.display  = fromCache ? '' : 'none';
+    document.getElementById('refreshBtn').style.display  = fromCache ? '' : 'none';
+    document.getElementById('loadBtn').style.display     = fromCache ? 'none' : '';
+
+    const tabsEl = document.getElementById('viewTabs');
+    tabsEl.innerHTML = '';
+    names.forEach((name, i) => {
+      const t = document.createElement('div');
+      t.className = 'view-tab' + (i === 0 ? ' active' : '');
+      t.id = 'tab_' + name;
+      t.textContent = name;
+      t.onclick = () => selectView(name);
+      tabsEl.appendChild(t);
+    });
+
+    const stripEl = document.getElementById('thumbStrip');
+    stripEl.innerHTML = '';
+    names.forEach((name, i) => {
+      const src  = 'data:image/png;base64,' + views[name];
+      const wrap = document.createElement('div');
+      wrap.className = 'thumb' + (i === 0 ? ' active' : '');
+      wrap.id = 'thumb_' + name;
+      wrap.onclick = () => selectView(name);
+      wrap.innerHTML = `<img src="${src}" alt="${name}"/>`;
+      stripEl.appendChild(wrap);
+    });
+
+    selectView(names[0]);
+  }
+
+  function selectView(name) {
+    const src = 'data:image/png;base64,' + loadedViews[name];
+    document.getElementById('viewDisplay').innerHTML =
+      `<img src="${src}" alt="${name}" onclick="openModal(this.src,'${name} view')"/>`;
+    document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'));
+    const tab = document.getElementById('tab_' + name);
+    if (tab) tab.classList.add('active');
+    document.querySelectorAll('.thumb').forEach(t => t.classList.remove('active'));
+    const thumb = document.getElementById('thumb_' + name);
+    if (thumb) thumb.classList.add('active');
+  }
+
+  // Phase 1: analyse
+  async function submitDescription() {
+    const desc = document.getElementById('descInput').value.trim();
+    if (!desc) { toast('Please enter a description first.'); return; }
+    userDescription = desc;
+
+    document.getElementById('analyseBtn').disabled = true;
+    setLoader('analyseLoader', 'analyseLoaderLabel', true);
+
+    try {
+      const form = new FormData();
+      form.append('user-description', desc);
+      if (Object.keys(loadedViews).length) {
+        form.append('views-cached', 'true');
+      }
+      const _c = _ctx();
+      form.append('documentId',  _c.documentId);
+      form.append('workspaceId', _c.workspaceId);
+      form.append('elementId',   _c.elementId);
+      form.append('wvm',         _c.wvm);
+      const resp = await fetch('/process-comment', {
+        method: 'POST',
+        credentials: 'include',
+        body: form,
+      });
+      const data = await resp.json();
+      if (data.error) { toast('Error: ' + data.error); return; }
+
+      if (data.views && Object.keys(data.views).length) {
+        renderViewPanel(data.views);
+      }
+
+      document.getElementById('aiText').textContent = data.ai_response;
+      document.getElementById('descSummary').textContent = desc;
+
+      enableTab(2);
+      enableTab(3, true);
+      markTabDone(1);
+      showResetBtn();
+      _dismissTip('analyse');
+      goTab(2);
+
+    } catch (e) {
+      toast('Network error — check the server.');
+    } finally {
+      document.getElementById('analyseBtn').disabled = false;
+      setLoader('analyseLoader', 'analyseLoaderLabel', false);
+    }
+  }
+
+  // Phase 2: generate
+  async function submitNextStep() {
+    const direction = document.getElementById('nextInput').value.trim();
+    if (!direction) { toast('Please describe your modification first.'); return; }
+
+    document.getElementById('generateBtn').disabled = true;
+    setLoader('generateLoader', 'generateLoaderLabel', true);
+    _dismissTip('generate');
+
+    // Show the gallery card and a spinner in the main display while generating
+    document.getElementById('conceptGalleryCard').style.display = '';
+    document.getElementById('conceptTitle').textContent =
+      direction.length > 38 ? direction.slice(0, 38) + '…' : direction;
+    document.getElementById('conceptCounter').textContent = '';
+    document.getElementById('conceptImgWrap').innerHTML = `
+      <div class="concept-placeholder">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"
+             style="width:28px;height:28px;animation:spin 2s linear infinite">
+          <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/>
+        </svg>
+        <span>Generating concept…</span>
+      </div>`;
+
+    try {
+      const resp = await fetch('/generate-next-step-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ direction, ..._ctx() }),
+      });
+      if (!resp.ok) {
+        const txt = await resp.text();
+        throw new Error(txt.startsWith('<') ? `Server error (HTTP ${resp.status})` : txt);
+      }
+      const data = await resp.json();
+      if (data.error) throw new Error(data.error);
+
+      const src = 'data:image/png;base64,' + data.image_b64;
+      addIteration(direction, src, data.prompt_used);
+      clearField('nextInput', 'nextCount');
+      document.getElementById('postGenBanner').style.display = 'flex';
+
+    } catch (e) {
+      if (iterationLog.length > 0) {
+        selectConcept(iterationLog.length - 1);
+      } else {
+        document.getElementById('conceptImgWrap').innerHTML = `
+          <div class="concept-placeholder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"
+                 style="width:28px;height:28px">
+              <circle cx="12" cy="12" r="9"/><path d="M12 8v4m0 4h.01"/>
+            </svg>
+            <span>Generation failed</span>
+          </div>`;
+      }
+      toast('Generation failed: ' + e.message);
+    } finally {
+      document.getElementById('generateBtn').disabled = false;
+      setLoader('generateLoader', 'generateLoaderLabel', false);
+    }
+  }
+
+  function addIteration(direction, imgSrc, prompt) {
+    const n = iterationLog.length + 1;
+    iterationLog.push({ direction, imgSrc, prompt, ts: new Date().toISOString() });
+
+    const strip = document.getElementById('conceptStrip');
+    const thumb = document.createElement('div');
+    thumb.className = 'cthumb';
+    thumb.id = 'cthumb-' + n;
+    const safeDir = direction.replace(/'/g, '&#39;');
+    thumb.innerHTML = `<img src="${imgSrc}" alt="Concept ${n}"/>` +
+                      `<div class="cthumb-n">${n}</div>`;
+    thumb.onclick = () => selectConcept(n - 1);
+    strip.appendChild(thumb);
+
+    // Scroll strip to reveal the newest thumb
+    setTimeout(() => strip.scrollTo({ left: strip.scrollWidth, behavior: 'smooth' }), 50);
+
+    selectConcept(n - 1);
+    _updatePrevConceptBadge();
+  }
+
+  function selectConcept(index) {
+    const item  = iterationLog[index];
+    if (!item) return;
+    const n     = index + 1;
+    const total = iterationLog.length;
+    const dir = item.direction;
+    document.getElementById('conceptTitle').textContent =
+      dir.length > 38 ? dir.slice(0, 38) + '\u2026' : dir;
+    document.getElementById('conceptCounter').textContent = n + ' / ' + total;
+
+    document.querySelectorAll('.cthumb').forEach((t, i) => {
+      t.classList.toggle('active', i === index);
+    });
+
+    const safeDir = dir.replace(/'/g, '&#39;');
+    document.getElementById('conceptImgWrap').innerHTML =
+      `<img src="${item.imgSrc}" alt="Concept ${n}"
+            style="width:100%;height:100%;object-fit:cover;cursor:zoom-in"
+            onclick="openModal(this.src,'Concept ${n} \u2014 ${safeDir}')"/>`;
+  }
+
+  // Assembly change detection — invalidates stale view cache only
+  async function _checkModelChanged() {
+    try {
+      const _params = new URLSearchParams(_ctx());
+      const resp = await fetch('/check-model-changed?' + _params, { credentials: 'include' });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (!data.changed || !data.has_cache) return;
+
+      console.log('[DesignLoop] Assembly changed since last cache — invalidating views');
+      await fetch('/cache-clear', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(_ctx()),
+      });
+      toast('Assembly updated — cached views cleared. Click Load Views to refresh.');
+    } catch (e) {
+      console.warn('[DesignLoop] _checkModelChanged error:', e);
+    }
+  }
+
+  async function finishIteration() {
+    const btn = document.getElementById('newIterBtn');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    try {
+      const resp = await fetch('/finish-iteration', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentId: _currentDocId  || '',
+          doc_name:   _currentDocName || '',
+        }),
+      });
+      const data = await resp.json();
+      if (data.error) {
+        toast('Could not finish iteration: ' + data.error);
+        btn.disabled = false;
+        btn.textContent = '\u2713 Finish Iteration';
+        return;
+      }
+      iterationCount = data.new_iteration;
+      if (data.report_url) {
+        currentReportUrl = data.report_url;
+        document.getElementById('reportLink').href = data.report_url;
+        document.getElementById('reportLink').style.display = 'inline-flex';
+      }
+    } catch (e) {
+      // Fall back to local increment if server unreachable
+      iterationCount++;
+    }
+
+    _doSessionReset();
+  }
+
+  function _doSessionReset() {
+    userDescription = '';
+    loadedViews = {};
+
+    clearField('descInput', 'descCount');
+    clearField('nextInput', 'nextCount');
+
+    document.getElementById('aiText').textContent = '';
+    document.getElementById('descSummary').textContent = '—';
+
+    document.getElementById('viewStatus').textContent = 'Not loaded';
+    document.getElementById('cacheBadge').style.display = 'none';
+    document.getElementById('refreshBtn').style.display = 'none';
+    document.getElementById('loadBtn').style.display    = '';
+    document.getElementById('viewTabs').innerHTML = '';
+    document.getElementById('thumbStrip').innerHTML = '';
+    document.getElementById('viewDisplay').innerHTML = `
+      <div class="view-placeholder">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+        </svg>
+        <span>Load views — Iteration ${iterationCount}</span>
+      </div>`;
+
+    document.getElementById('conceptGalleryCard').style.display = 'none';
+    document.getElementById('conceptStrip').innerHTML = '';
+    document.getElementById('conceptCounter').textContent = '';
+    document.getElementById('skipToGenBtn').style.display = 'none';
+    document.getElementById('finishPromptBanner').style.display = 'none';
+    document.getElementById('postGenBanner').style.display = 'none';
+
+    ['tab1','tab2','tab3'].forEach(id => {
+      const btn = document.getElementById(id);
+      btn.classList.remove('done','active','blue');
+      btn.disabled = (id !== 'tab1');
+    });
+    document.getElementById('tab3').classList.add('blue');
+
+    document.getElementById('iterBadge').textContent = 'Iteration ' + iterationCount;
+    const btn = document.getElementById('newIterBtn');
+    btn.textContent = '\u2713 Finish Iteration';
+    btn.disabled = false;
+    btn.style.display = 'inline-flex';
+
+    iterationLog = [];
+    _updatePrevConceptBadge();
+
+    // One-time History tutorial tip
+    const _TIP_KEY = 'designloop_history_tip_shown';
+    if (!localStorage.getItem(_TIP_KEY)) {
+      localStorage.setItem(_TIP_KEY, '1');
+      setTimeout(() => {
+        const tip = document.getElementById('historyTip');
+        if (tip) tip.style.display = '';
+      }, 800);
+    }
+
+    goTab(1);
+  }
+
+  function showResetBtn() {
+    const btn = document.getElementById('newIterBtn');
+    btn.textContent = '\u2713 Finish Iteration';
+    btn.style.display = 'inline-flex';
+    document.getElementById('reportLink').style.display = 'inline-flex';
+    document.getElementById('historyBtn').style.display = 'inline-flex';
+    document.getElementById('finishPromptBanner').style.display = 'flex';
+  }
+
+  async function openHistory() {
+    document.getElementById('historyModal').style.display = 'flex';
+    document.getElementById('historyBody').innerHTML = '<div style="color:var(--muted)">Loading…</div>';
+    try {
+      const resp = await fetch(
+        '/get-iteration-history?documentId=' + encodeURIComponent(_currentDocId || ''),
+        { credentials: 'include' }
+      );
+      const data = await resp.json();
+      if (data.error) {
+        document.getElementById('historyBody').innerHTML =
+          `<div style="color:var(--red)">${data.error}</div>`;
+        return;
+      }
+      document.getElementById('historyBody').innerHTML = _renderHistory(data);
+    } catch (e) {
+      document.getElementById('historyBody').innerHTML =
+        `<div style="color:var(--red)">Failed: ${e.message}</div>`;
+    }
+  }
+
+  function closeHistory(e) {
+    if (!e || e.target === document.getElementById('historyModal')) {
+      document.getElementById('historyModal').style.display = 'none';
+    }
+  }
+
+  function _renderHistory(data) {
+    const completed = data.completed || [];
+    const current   = data.current_iteration;
+    const ctx       = data.current_context || {};
+
+    if (!completed.length && !(ctx.description || (ctx.concepts||[]).length)) {
+      return '<div style="color:var(--muted)">No completed iterations yet.</div>';
+    }
+
+    const LBL = 'font-size:9px;font-weight:700;text-transform:uppercase;' +
+                'letter-spacing:0.06em;color:var(--muted);margin-bottom:6px';
+
+    function renderConcepts(concepts) {
+      if (!concepts || !concepts.length) return '';
+      const cards = concepts.map((c, i) => {
+        const imgHtml = c.image_url
+          ? `<img src="${c.image_url}" alt="Concept ${i+1}"
+                  style="width:100%;border-radius:4px;border:1px solid var(--border);
+                         display:block;cursor:zoom-in;background:#08080a"
+                  onclick="openModal('${c.image_url}','${_esc(c.direction).replace(/'/g,"&#39;")}')"/>`
+          : `<div style="width:100%;aspect-ratio:1;background:var(--surface3);
+                          border-radius:4px;border:1px solid var(--border);
+                          display:flex;align-items:center;justify-content:center;
+                          font-size:10px;color:var(--muted)">No image</div>`;
+        return `<div style="flex:0 0 calc(50% - 4px);min-width:0">
+          ${imgHtml}
+          <div style="font-size:10px;color:var(--dim);margin-top:5px;
+                      line-height:1.4">${_esc(c.direction)}</div>
+        </div>`;
+      }).join('');
+      return `<div style="margin-top:8px">
+        <div style="${LBL}">Inspiration Directions</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">${cards}</div>
+      </div>`;
+    }
+
+    let html = '';
+
+    // Completed iterations
+    for (const rec of completed) {
+      const n        = rec.iteration || '?';
+      const desc     = rec.description || '';
+      const analysis = rec.analysis   || '';
+      const concepts = rec.concepts   || [];
+      html += `
+        <div style="border:1px solid var(--border);border-radius:6px;
+                    margin-bottom:12px;overflow:hidden">
+          <div style="background:var(--surface2);padding:7px 12px;
+                      border-bottom:1px solid var(--border);
+                      display:flex;align-items:center;gap:8px">
+            <span style="font-size:11px;font-weight:700;color:var(--accent)">
+              Iteration ${n}</span>
+            <span style="font-size:9px;color:var(--muted);
+                         text-transform:uppercase;letter-spacing:0.05em">Completed</span>
+          </div>
+          <div style="padding:10px 12px">
+            ${desc ? `<div style="margin-bottom:10px">
+              <div style="${LBL}">Design Description</div>
+              <div style="font-style:italic;color:var(--text-hi)">${_esc(desc)}</div>
+            </div>` : ''}
+            ${analysis ? `<div style="margin-bottom:10px">
+              <div style="${LBL}">AI Analysis</div>
+              <div style="color:var(--text);white-space:pre-wrap;
+                          max-height:260px;overflow-y:auto;
+                          font-size:12px;line-height:1.6;
+                          padding:8px;background:var(--surface3);
+                          border-radius:4px;border:1px solid var(--border)">
+                ${_esc(analysis)}
+              </div>
+            </div>` : ''}
+            ${renderConcepts(concepts)}
+          </div>
+        </div>`;
+    }
+
+    // Current in-progress iteration
+    const ctxConcepts = ctx.concepts || [];
+    if (ctx.description || ctx.analysis || ctxConcepts.length) {
+      html += `
+        <div style="border:1px solid #2a3a10;border-radius:6px;overflow:hidden">
+          <div style="background:#131a09;padding:7px 12px;
+                      border-bottom:1px solid #2a3a10;
+                      display:flex;align-items:center;gap:8px">
+            <span style="font-size:11px;font-weight:700;color:#e8c947">
+              Iteration ${current}</span>
+            <span style="font-size:9px;color:var(--muted);
+                         text-transform:uppercase;letter-spacing:0.05em">In Progress</span>
+          </div>
+          <div style="padding:10px 12px">
+            ${ctx.description ? `<div style="margin-bottom:10px">
+              <div style="${LBL}">Design Description</div>
+              <div style="font-style:italic;color:var(--text-hi)">${_esc(ctx.description)}</div>
+            </div>` : ''}
+            ${ctx.analysis ? `<div style="margin-bottom:10px">
+              <div style="${LBL}">AI Analysis</div>
+              <div style="color:var(--text);white-space:pre-wrap;
+                          max-height:260px;overflow-y:auto;
+                          font-size:12px;line-height:1.6;
+                          padding:8px;background:var(--surface3);
+                          border-radius:4px;border:1px solid var(--border)">
+                ${_esc(ctx.analysis)}
+              </div>
+            </div>` : ''}
+            ${renderConcepts(ctxConcepts)}
+          </div>
+        </div>`;
+    }
+
+    return html || '<div style="color:var(--muted)">No history yet.</div>';
+  }
+
+  function _esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                    .replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  }
+
+  function _updatePrevConceptBadge() {
+    const badge = document.getElementById('prevConceptBadge');
+    if (!badge) return;
+    badge.style.display = iterationLog.length > 0 ? 'inline' : 'none';
+    if (iterationLog.length > 0) {
+      const last = iterationLog[iterationLog.length - 1];
+      const short = last.direction.length > 40
+        ? last.direction.slice(0,40) + '\u2026' : last.direction;
+      badge.title = `Previous: "${short}"`;
+      const ta = document.getElementById('nextInput');
+      if (ta && !ta.value) {
+        ta.placeholder = 'Refine the previous image, or describe a new direction\u2026';
+      }
+    } else {
+      const ta = document.getElementById('nextInput');
+      if (ta && !ta.value) {
+        ta.placeholder = 'e.g. Add a telescoping height adjustment mechanism to the base.';
+      }
+    }
+  }
+
+  // Onboarding tooltips — shown once each, tracked in localStorage
+  const _OB_KEY = 'designloop_onboard_v1';
+  function _obSeen(step) {
+    try { return JSON.parse(localStorage.getItem(_OB_KEY) || '{}')[step]; } catch { return false; }
+  }
+  function _dismissTip(step) {
+    try {
+      const seen = JSON.parse(localStorage.getItem(_OB_KEY) || '{}');
+      seen[step] = true;
+      localStorage.setItem(_OB_KEY, JSON.stringify(seen));
+    } catch { /* ignore */ }
+    const el = document.getElementById('tip-' + step);
+    if (el) el.style.display = 'none';
+  }
+  function _showTip(step) {
+    if (_obSeen(step)) return;
+    const el = document.getElementById('tip-' + step);
+    if (el) el.style.display = '';
+  }
+
+  // Spinner keyframes
+  const style = document.createElement('style');
+  style.textContent = `@keyframes spin { to { transform: rotate(360deg); } }`;
+  document.head.appendChild(style);
+
+  // Init auto-resize after layout so scrollHeight is accurate
+  requestAnimationFrame(() => {
+    ['descInput','nextInput'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) _autoResize(el);
+    });
+  });
+</script>
+</body>
+</html>
