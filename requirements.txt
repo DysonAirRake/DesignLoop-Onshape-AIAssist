@@ -1,0 +1,11 @@
+flask>=3.0
+python-dotenv>=1.0
+requests>=2.31
+openai>=1.30
+
+# capture_screenshots.py only
+playwright>=1.44
+
+# ldraw/ldraw_to_step_direct.py only
+pythonocc-core>=7.7
+numpy>=1.26
