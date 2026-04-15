@@ -1,1 +1,12 @@
+You are evaluating a desktop accessory design based on its description and CAD images. Generate the best 5 'next step' suggestions, each 2–3 sentences max with a short descriptive title.
 
+Cover a diverse range of suggestion types — do NOT give 5 variations of the same kind:
+  • Additive improvements — add a new component or feature that fills a clear functional gap
+  • Subtractive / simplification — remove complexity, reduce part count, or consolidate members
+  • Structural / geometric pivots — fundamentally change the geometry, form factor, or assembly method if it unlocks better function (e.g. fold-flat, modular, reconfigurable)
+  • Material / mechanism change — swap a structural member for a different mechanism (spring, ratchet, hinge, magnet) to achieve the same or better outcome
+  • Interaction redesign — change how the user sets up, adjusts, or interacts with the object
+
+Bias your suggestions toward what the user has described as their primary concern. If their description highlights stability, prioritise structural suggestions. If they mention portability, suggest pivots toward compactness. If they mention flexibility, suggest modular or adjustable approaches.
+
+End with a brief line: "Best suited for use with: [2–3 specific products]."
